@@ -49,5 +49,6 @@ func (t *authTransport) doRequest(req *http.Request) (*http.Response, error) {
 }
 
 func NewHTTPClient(manager *TokenManager) *http.Client {
-	return &http.Client{Transport: newAuthTransport(manager)}
+	auth := newAuthTransport(manager)
+	return &http.Client{Transport: newRetryTransport(auth)}
 }
