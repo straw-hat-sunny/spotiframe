@@ -20,7 +20,7 @@ import (
 
 const (
 	tokenFile            = "token.json"
-	listenAddr           = "127.0.0.1:8080"
+	defaultListenAddr    = "127.0.0.1:8080"
 	defaultPublicBaseURL = "http://127.0.0.1:8080"
 )
 
@@ -29,6 +29,7 @@ type appConfig struct {
 	ClientSecret  string
 	PublicBaseURL string
 	RedirectURI   string
+	ListenAddr    string
 }
 
 func main() {
@@ -58,10 +59,10 @@ func main() {
 		http.Redirect(w, r, "/login", http.StatusTemporaryRedirect)
 	})
 
-	server := &http.Server{Addr: listenAddr, Handler: mux}
+	server := &http.Server{Addr: cfg.ListenAddr, Handler: mux}
 	serverErr := make(chan error, 1)
 	go func() {
-		log.Printf("Starting web server at %s (public URL: %s)", listenAddr, cfg.PublicBaseURL)
+		log.Printf("Starting web server at %s (public URL: %s)", cfg.ListenAddr, cfg.PublicBaseURL)
 		serverErr <- server.ListenAndServe()
 	}()
 
@@ -151,10 +152,16 @@ func loadConfig() (appConfig, error) {
 	}
 
 	publicBaseURL = strings.TrimSuffix(publicBaseURL, "/")
+	listenAddr := strings.TrimSpace(os.Getenv("LISTEN_ADDR"))
+	if listenAddr == "" {
+		listenAddr = defaultListenAddr
+	}
+
 	return appConfig{
 		ClientID:      clientID,
 		ClientSecret:  clientSecret,
 		PublicBaseURL: publicBaseURL,
 		RedirectURI:   publicBaseURL + "/callback",
+		ListenAddr:    listenAddr,
 	}, nil
 }

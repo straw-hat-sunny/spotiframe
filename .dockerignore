@@ -1,0 +1,7 @@
+.git
+.worktrees
+.env
+token.json
+bin
+*.exe
+root.crt

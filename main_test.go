@@ -18,6 +18,24 @@ func TestLoadConfigDefaultsToLoopbackForMacDevelopment(t *testing.T) {
 	if cfg.RedirectURI != "http://127.0.0.1:8080/callback" {
 		t.Fatalf("RedirectURI = %q, want loopback callback URL", cfg.RedirectURI)
 	}
+	if cfg.ListenAddr != "127.0.0.1:8080" {
+		t.Fatalf("ListenAddr = %q, want loopback development address", cfg.ListenAddr)
+	}
+}
+
+func TestLoadConfigUsesConfiguredListenAddress(t *testing.T) {
+	t.Setenv("SPOTIFY_CLIENT_ID", "client-id")
+	t.Setenv("SPOTIFY_CLIENT_SECRET", "client-secret")
+	t.Setenv("LISTEN_ADDR", "0.0.0.0:8080")
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+
+	if cfg.ListenAddr != "0.0.0.0:8080" {
+		t.Fatalf("ListenAddr = %q, want container listen address", cfg.ListenAddr)
+	}
 }
 
 func TestLoadConfigBuildsCallbackFromPublicBaseURL(t *testing.T) {
