@@ -1,5 +1,5 @@
 module github.com/straw-hat-sunny/spotiframe
 
-go 1.23.1
+go 1.26.4
 
-require github.com/joho/godotenv v1.5.1 // indirect
+require github.com/joho/godotenv v1.5.1

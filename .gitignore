@@ -2,3 +2,4 @@
 token.json
 .env
 *.exe
+root.crt
