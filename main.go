@@ -1,47 +1,87 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/straw-hat-sunny/spotiframe/internal/spotify"
 )
 
 const (
-	redirectURI = "http://127.0.0.1:8080/callback"
-	tokenFile   = "token.json"
-	listenAddr  = ":8080"
+	tokenFile            = "token.json"
+	listenAddr           = "127.0.0.1:8080"
+	defaultPublicBaseURL = "http://127.0.0.1:8080"
 )
 
+type appConfig struct {
+	ClientID      string
+	ClientSecret  string
+	PublicBaseURL string
+	RedirectURI   string
+}
+
 func main() {
-	clientID, clientSecret := loadEnv()
+	cfg, err := loadConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	store := spotify.NewFileTokenStore(tokenFile)
-	manager := spotify.NewTokenManager(spotify.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURI:  redirectURI,
+	spotifyCfg := spotify.Config{
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		RedirectURI:  cfg.RedirectURI,
 		Scopes:       []string{"user-read-playback-state"},
-	}, store)
+	}
+	manager := spotify.NewTokenManager(spotifyCfg, store)
 
 	auth := spotify.NewAuth(manager)
 	client := spotify.NewClient(manager)
 
-	http.HandleFunc("/login", auth.LoginHandler())
-	http.HandleFunc("/callback", auth.CallbackHandler())
-	http.HandleFunc("/healthz", healthHandler(store))
-	http.HandleFunc("/current-track", getCurrentTrackHandler(client))
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login", auth.LoginHandler())
+	mux.HandleFunc("/callback", auth.CallbackHandler())
+	mux.HandleFunc("/healthz", healthHandler(store))
+	mux.HandleFunc("/current-track", getCurrentTrackHandler(client))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusTemporaryRedirect)
 	})
 
-	log.Printf("Listening on %s — open http://127.0.0.1%s/login to authenticate", listenAddr, listenAddr)
-	log.Fatal(http.ListenAndServe(listenAddr, nil))
+	server := &http.Server{Addr: listenAddr, Handler: mux}
+	serverErr := make(chan error, 1)
+	go func() {
+		log.Printf("Starting web server at %s (public URL: %s)", listenAddr, cfg.PublicBaseURL)
+		serverErr <- server.ListenAndServe()
+	}()
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sig)
+
+	select {
+	case <-sig:
+		log.Println("Shutting down safely...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Web server shutdown failed: %v", err)
+		}
+	case err := <-serverErr:
+		if !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("Web server failed: %v", err)
+		}
+	}
 }
 
 func getCurrentTrackHandler(client *spotify.Client) http.HandlerFunc {
@@ -56,7 +96,7 @@ func getCurrentTrackHandler(client *spotify.Client) http.HandlerFunc {
 			return
 		}
 
-		fmt.Println(track)
+		//fmt.Println(track)
 		if track.Item == nil || len(track.Item.Album.Images) == 0 {
 			http.Error(w, "no track currently playing", http.StatusNotFound)
 			return
@@ -82,7 +122,7 @@ func healthHandler(store spotify.TokenStore) http.HandlerFunc {
 	}
 }
 
-func loadEnv() (string, string) {
+func loadConfig() (appConfig, error) {
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found, using environment variables")
 	}
@@ -91,11 +131,30 @@ func loadEnv() (string, string) {
 	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
 
 	if clientID == "" {
-		log.Fatal("SPOTIFY_CLIENT_ID is required")
+		return appConfig{}, errors.New("SPOTIFY_CLIENT_ID is required")
 	}
 	if clientSecret == "" {
-		log.Fatal("SPOTIFY_CLIENT_SECRET is required")
+		return appConfig{}, errors.New("SPOTIFY_CLIENT_SECRET is required")
 	}
 
-	return clientID, clientSecret
+	publicBaseURL := strings.TrimSpace(os.Getenv("PUBLIC_BASE_URL"))
+	if publicBaseURL == "" {
+		publicBaseURL = defaultPublicBaseURL
+	}
+
+	parsedURL, err := url.Parse(publicBaseURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return appConfig{}, fmt.Errorf("PUBLIC_BASE_URL must be an absolute HTTP(S) URL: %q", publicBaseURL)
+	}
+	if parsedURL.User != nil || (parsedURL.Path != "" && parsedURL.Path != "/") || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return appConfig{}, fmt.Errorf("PUBLIC_BASE_URL must not contain credentials, a path, query, or fragment: %q", publicBaseURL)
+	}
+
+	publicBaseURL = strings.TrimSuffix(publicBaseURL, "/")
+	return appConfig{
+		ClientID:      clientID,
+		ClientSecret:  clientSecret,
+		PublicBaseURL: publicBaseURL,
+		RedirectURI:   publicBaseURL + "/callback",
+	}, nil
 }
