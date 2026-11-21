@@ -31,11 +31,11 @@ class SpotifyTests(unittest.TestCase):
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
 
-    def test_track_album_extracted_and_paused_ignored(self):
+    def test_track_album_extracted_when_playing_or_paused(self):
         body = {'is_playing': True, 'currently_playing_type': 'track', 'item': {'type': 'track', 'album': {'id': 'album1', 'images': [{'url': 'https://i.scdn.co/image/full', 'width': 640, 'height': 640}], 'external_urls': {'spotify': 'https://open.spotify.com/album/album1'}}}}
         self.assertEqual(current_album(body), Album('album1', 'https://i.scdn.co/image/full'))
         body['is_playing'] = False
-        self.assertIsNone(current_album(body))
+        self.assertEqual(current_album(body), Album('album1', 'https://i.scdn.co/image/full'))
         body['is_playing'] = True
         body['item']['album']['images'] = []
         self.assertIsNone(current_album(body))

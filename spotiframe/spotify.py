@@ -133,7 +133,7 @@ def request(url, data=None, headers=None):
 
 
 def current_album(body):
-    if not isinstance(body, dict) or not body.get('is_playing') or body.get('currently_playing_type') != 'track':
+    if not isinstance(body, dict) or body.get('currently_playing_type') != 'track':
         return None
     item = body.get('item') or {}
     if not isinstance(item, dict) or item.get('type') != 'track':

@@ -2,7 +2,7 @@
 
 SpotiFrame displays the album art for the current Spotify track on a Pimoroni Inky Impression 7.3 connected to a Raspberry Pi Zero 2 W. You can also preview the 800 × 480 display in a browser on your Mac.
 
-The full cover is centered over a blurred background. When nothing is playing, playback is paused, or artwork is unavailable, the screen is black. Spotify is checked every 30 seconds by default, and the display refreshes only when the album changes.
+The full cover is centered over a blurred background. When playback pauses or nothing is playing, the frame keeps the last album artwork it displayed. Spotify is checked every 30 seconds by default, and the display refreshes only when the album changes. The Inky retains its image when the app stops; artwork is not saved to disk. If no artwork has been displayed yet, there may be no album to show until Spotify provides one.
 
 ## Requirements
 
@@ -104,7 +104,7 @@ The app requests only `user-read-currently-playing`. Credentials are stored in `
 - **Invalid redirect URI:** Check that the tunnel is running and `SPOTIFY_REDIRECT_URI` in `.env` exactly matches the URL registered in Spotify, including `/callback`. A restarted Quick Tunnel has a new hostname. Environment variables already set in your shell take precedence over `.env`.
 - **Tunnel returns 502:** The callback server listens on port 8888 only while the app is waiting for Spotify sign-in. Start the app with `--reauthorize`, then scan the QR code; opening the tunnel URL at other times can return 502.
 - **Port 8888 is in use:** Stop the other process using that port. If you change the app's local callback port using `SPOTIFRAME_CALLBACK_PORT`, point the tunnel at that same port.
-- **Black screen:** Start playing a Spotify track on one of your devices. The app also shows black while playback is paused or artwork is unavailable.
+- **Black screen:** Start playing a Spotify track on one of your devices. The display needs an available album cover before it can show artwork.
 
 For local Mac sign-in without a tunnel, register `http://127.0.0.1:8888/callback` in the dashboard and set it as `SPOTIFY_REDIRECT_URI` in `.env`. Run the browser preview and select **Sign in on this computer**. A phone cannot automatically return to the Mac through this loopback address.
 

@@ -85,9 +85,6 @@ def main():
             output.close()
         elif args.preview:
             Path(args.preview).unlink(missing_ok=True)
-        else:
-            # E-paper retains its image after exit; remove stale Spotify content.
-            controller.update(None)
         if pairing and pairing is not output:
             pairing.close()
     return 0

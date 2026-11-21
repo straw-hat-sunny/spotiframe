@@ -27,7 +27,7 @@ class DisplayTests(unittest.TestCase):
         self.assertNotEqual(image.getpixel((30, 240)), (0, 0, 0))
         self.assertNotEqual(image.getpixel((770, 240)), (0, 0, 0))
 
-    def test_only_changes_album_or_transitions_to_idle(self):
+    def test_keeps_artwork_when_playback_stops_and_updates_for_new_album(self):
         output = Recorder()
         downloads = []
         def download(url):
@@ -41,9 +41,17 @@ class DisplayTests(unittest.TestCase):
         self.assertEqual(downloads, ['https://image/1'])
         controller.update(None)
         controller.update(None)
-        self.assertEqual(len(output.images), 2)
+        self.assertEqual(len(output.images), 1)
+        self.assertEqual(output.images[-1].getpixel((400, 240)), (255, 0, 0))
         controller.update(album)
-        self.assertEqual(len(output.images), 3)
+        self.assertEqual(len(output.images), 1)
+        controller.update(Album('2', 'https://image/2'))
+        self.assertEqual(len(output.images), 2)
+
+    def test_no_playback_at_start_does_not_overwrite_existing_display(self):
+        output = Recorder()
+        FrameController(output).update(None)
+        self.assertEqual(output.images, [])
 
     def test_preview_refuses_to_overwrite_an_existing_file(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -97,6 +105,14 @@ class SignInDisplayTests(unittest.TestCase):
         self.assertGreater(frame.crop((20, 40, 400, 440)).convert('L').histogram()[255], 10000)
 
 class SignInTransitionTests(unittest.TestCase):
+    def test_last_artwork_is_restored_after_sign_in_when_playback_is_idle(self):
+        output = Recorder()
+        controller = FrameController(output, lambda url: Image.new('RGB', (100, 100), 'red'))
+        controller.update(Album('1', 'https://image/1'))
+        controller.show_signin('https://example.test/signin')
+        controller.update(None)
+        self.assertEqual(output.images[-1].getpixel((400, 240)), (255, 0, 0))
+
     def test_sign_in_screen_is_replaced_by_black_idle_after_authentication(self):
         output = Recorder()
         controller = FrameController(output, resolution=(800, 480))

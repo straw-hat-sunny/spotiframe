@@ -69,19 +69,30 @@ class FrameController:
         self.output = output
         self.download = download
         self.resolution = resolution
-        self.current = object()
+        self.current = None
+        self.last_image = None
+        self.signin_visible = False
 
     def show_signin(self, url):
         self.output.show(render_signin(url, self.resolution))
-        self.current = object()
+        self.signin_visible = True
 
     def update(self, album):
-        key = album.id if album else None
-        if key == self.current:
+        if album is None:
+            if self.signin_visible:
+                self.output.show(self.last_image if self.last_image is not None else render_idle(self.resolution))
+                self.signin_visible = False
             return
-        image = render_idle(self.resolution) if album is None else render_album(self.download(album.image_url), self.resolution)
+        if album.id == self.current:
+            if self.signin_visible:
+                self.output.show(self.last_image)
+                self.signin_visible = False
+            return
+        image = render_album(self.download(album.image_url), self.resolution)
         self.output.show(image)
-        self.current = key
+        self.current = album.id
+        self.last_image = image
+        self.signin_visible = False
 
 
 class InkyOutput:
